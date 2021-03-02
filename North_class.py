@@ -139,6 +139,9 @@ class North_1D():
         
         self.t = t
         if seasonality == True: 
+            # initial values calculated by non-seasonal model
+            self.sol = odeint(self.__define_equation, self.T_0, t)
+            self.T_0 = self.sol[-1, :]
             self.sol = odeint(self.__define_equation_seasonal, self.T_0, t)
         elif seasonality == False: 
             self.sol = odeint(self.__define_equation, self.T_0, t)
@@ -153,10 +156,10 @@ class North_1D():
         self.line, = self.ax.plot(x, self.sol[0, :])
         self.ax.set_ylim(-40,40)
         self.ax.axhline(-10, ls = "--", color = "black")
-        xticklabels = [str(x) for x in range(0, int(self.t[-1]), 10)]
-        self.ax.set_xlabel("Modeltime [year]")
+        xticklabels = [str(x) for x in range(0, 90, 10)]
+        self.ax.set_xlabel(r"Latitude $\theta$")
         self.ax.set_xticklabels(xticklabels)
-        self.ax.set_xticks(np.arange(0, self.t.size, 10 * self.t.size/int(self.t[-1])))
+        self.ax.set_xticks(np.arange(0, self.n + 1, int(self.n/90*10)))
         self.ax.grid(True, ls = '--')
         self.ax.set_ylabel(r"Temperature [$^\circ$C]")
         return self.line,
@@ -206,8 +209,8 @@ class North_1D():
         
 
 # All the constants for calculation. 
-tinit = 100
-num = 700
+tinit = 30
+num = 100
 A = 211.2 - 18.
 B = 1/0.32
 D = 0.38
@@ -227,7 +230,7 @@ n = 500
 T0 = 30 - ((np.arange(1, n + 1) - 0.5) * 1/n) * 50
 t = np.linspace(0, tinit, num)
 
-m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = 5.35)
+m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = 0)
 m.solve_model(t = t, seasonality = True)
 m.animate_solution()
 A, ind = m.calculate_SIA()
