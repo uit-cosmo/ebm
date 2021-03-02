@@ -88,6 +88,15 @@ class North_1D():
         return -0.5 + 0.03*t
     
     def __forcing_CO2(self, t): 
+        """
+        Formula for CO2 forcing. 
+        
+        Reference:
+        Myhre, G., E.J. Highwood, K.P. Shine, and F. Stordal, 1998: 
+        New estimates of radiative forcing due to well mixed greenhouse gases. 
+        Geophysical Research Letters, 25, 2715-2718.
+        """
+        
         CO2ppm = 280
         return self.CO2_parameter*np.log((CO2ppm*1.02**(t)/self.CO2_Base))
 
