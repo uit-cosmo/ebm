@@ -36,6 +36,11 @@ class North_1D():
         self.t = t
         self.CO2_parameter = CO2_parameter
         self.CO2_Base = 280 #1750 280 ppm CO2
+        plt.rcParams['font.size'] = 10
+        plt.rcParams['axes.linewidth'] = 2
+        plt.rcParams['axes.labelsize'] = 10
+        plt.rcParams['axes.labelweight'] = 'bold'
+        plt.rcParams['font.weight'] = 'bold'
 
     def __construct_laplacian(self): 
         """ 
@@ -147,7 +152,13 @@ class North_1D():
         x = np.arange(self.n)
         self.line, = self.ax.plot(x, self.sol[0, :])
         self.ax.set_ylim(-40,40)
-        self.ax.axhline(-10, ls = "--")
+        self.ax.axhline(-10, ls = "--", color = "black")
+        xticklabels = [str(x) for x in range(0, int(self.t[-1]), 10)]
+        self.ax.set_xlabel("Modeltime [year]")
+        self.ax.set_xticklabels(xticklabels)
+        self.ax.set_xticks(np.arange(0, self.t.size, 10 * self.t.size/int(self.t[-1])))
+        self.ax.grid(True, ls = '--')
+        self.ax.set_ylabel(r"Temperature [$^\circ$C]")
         return self.line,
     
     
@@ -161,6 +172,7 @@ class North_1D():
         """
         Animates the solution of the EBM from start to end.
         """
+        
         self.line, = self.__animate_plot()
         ani = animation.FuncAnimation(
             self.fig, self.__animate, interval=20, blit=True, save_count=10, repeat = True)
@@ -176,14 +188,26 @@ class North_1D():
         
         ind = (np.argmax(self.sol<-10, axis = 1))
         ind[ind == 0] = self.n - 1 
-        A = 2 * np.pi * self.r_E**2 *(1 - self.theta[ind])
-        return A, ind
-        
+        self.area = 2 * np.pi * self.r_E**2 *(1 - self.theta[ind])
+        return self.area, ind
+    
+    def plot_SIA(self): 
+
+        self.fig, self.ax = plt.subplots()
+        xticklabels = [str(x) for x in range(0, int(self.t[-1]), 10)]
+        self.ax.plot(self.area, lw = 2)
+        self.ax.set_xlabel("Modeltime [year]")
+        self.ax.set_xticklabels(xticklabels)
+        self.ax.set_xticks(np.arange(0, self.t.size, 10 * self.t.size/int(self.t[-1])))
+        self.ax.grid(True, ls = '--')
+        self.ax.set_ylabel("SIA [km²]")
+        plt.show()
+
         
 
-
-tinit = 200
-num = 3000
+# All the constants for calculation. 
+tinit = 100
+num = 700
 A = 211.2 - 18.
 B = 1/0.32
 D = 0.38
@@ -207,6 +231,5 @@ m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0,
 m.solve_model(t = t, seasonality = True)
 m.animate_solution()
 A, ind = m.calculate_SIA()
+m.plot_SIA()
 
-plt.plot(A)
-plt.show()
