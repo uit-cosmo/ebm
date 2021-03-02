@@ -7,7 +7,7 @@ import matplotlib.animation as animation
 
 class North_1D(): 
     
-    def  __init__(self, A, B, D, s1, s2, s22, Tc, b0, a0, a2, Q, c, n, T_0): 
+    def  __init__(self, A, B, D, s1, s2, s22, Tc, b0, a0, a2, Q, c, n, T_0, CO2_parameter): 
         self.A = A 
         self.B = B
         self.D = D
@@ -34,6 +34,8 @@ class North_1D():
         self.fig, self.ax = plt.subplots()
         self.line = []
         self.t = t
+        self.CO2_parameter = CO2_parameter
+        self.CO2_Base = 280 #1750 280 ppm CO2
 
     def __construct_laplacian(self): 
         """ 
@@ -85,6 +87,9 @@ class North_1D():
     def __forcing(self, t):
         return -0.5 + 0.03*t
     
+    def __forcing_CO2(self, t): 
+        CO2ppm = 280
+        return self.CO2_parameter*np.log((CO2ppm*1.02**(t)/self.CO2_Base))
 
     def __define_equation_seasonal(self, T, t): 
         """
@@ -92,7 +97,7 @@ class North_1D():
         """
         
         a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
-        dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + self.__forcing(t) * self.v)/self.c
+        dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + self.__forcing_CO2(t) * self.v)/self.c
         return dTdt
     
     def __define_equation(self, T, t): 
@@ -102,7 +107,7 @@ class North_1D():
 
         a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
         S = 1 + self.s2 * eval_legendre(2, self.X)
-        dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + self.__forcing(t) * self.v)/self.c
+        dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + self.__forcing_CO2(t) * self.v)/self.c
         return dTdt
     
     
@@ -189,7 +194,7 @@ n = 500
 T0 = 30 - ((np.arange(1, n + 1) - 0.5) * 1/n) * 50
 t = np.linspace(0, tinit, num)
 
-m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0)
+m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = 5.35)
 m.solve_model(t = t, seasonality = True)
 m.animate_solution()
 A, ind = m.calculate_SIA()
