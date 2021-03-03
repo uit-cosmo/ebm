@@ -105,23 +105,29 @@ class North_1D():
         CO2ppm = 280
         return self.CO2_parameter*np.log((CO2ppm*1.02**(t)/self.CO2_Base))
 
-    def __define_equation_seasonal(self, T, t): 
+    def __define_equation_seasonal(self, T, t, forcing): 
         """
         ODE to solve with seasonality.
         """
         
         a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
-        dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + self.__forcing_CO2(t) * self.v)/self.c
+        if forcing == False:
+            dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + 0 * self.v)/self.c
+        else: 
+            dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + self.__forcing_CO2(t) * self.v)/self.c
         return dTdt
     
-    def __define_equation(self, T, t): 
+    def __define_equation(self, T, t, forcing): 
         """
         ODE to solve without seasonality.
         """
 
         a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
         S = 1 + self.s2 * eval_legendre(2, self.X)
-        dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + self.__forcing_CO2(t) * self.v)/self.c
+        if forcing == False:
+            dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + 0 * self.v)/self.c
+        else:
+            dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + self.__forcing_CO2(t) * self.v)/self.c
         return dTdt
     
     
@@ -140,11 +146,11 @@ class North_1D():
         self.t = t
         if seasonality == True: 
             # initial values calculated by non-seasonal model
-            self.sol = odeint(self.__define_equation, self.T_0, t)
+            self.sol = odeint(self.__define_equation, self.T_0, t, args= (False,))
             self.T_0 = self.sol[-1, :]
-            self.sol = odeint(self.__define_equation_seasonal, self.T_0, t)
+            self.sol = odeint(self.__define_equation_seasonal, self.T_0, t, args = (True,))
         elif seasonality == False: 
-            self.sol = odeint(self.__define_equation, self.T_0, t)
+            self.sol = odeint(self.__define_equation, self.T_0, t, args =  (True,))
         else: 
             raise Exception("No valid value.")
         return self.sol
@@ -209,8 +215,8 @@ class North_1D():
         
 
 # All the constants for calculation. 
-tinit = 30
-num = 100
+tinit = 100 #number of years
+num = 500
 A = 211.2 - 18.
 B = 1/0.32
 D = 0.38
@@ -230,7 +236,7 @@ n = 500
 T0 = 30 - ((np.arange(1, n + 1) - 0.5) * 1/n) * 50
 t = np.linspace(0, tinit, num)
 
-m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = 0)
+m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = 6)
 m.solve_model(t = t, seasonality = True)
 m.animate_solution()
 A, ind = m.calculate_SIA()
