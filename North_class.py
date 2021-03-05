@@ -4,6 +4,7 @@ from scipy.special import eval_legendre
 from scipy.integrate import odeint
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
+import os
 
 class North_1D(): 
     
@@ -149,6 +150,8 @@ class North_1D():
         time_dependent_albedo: True for time dependent albedo, False for constant albedo. Only for seasonal model. 
         """
         
+        self.seasonality = seasonality 
+        self.time_dependent_albedo = time_dependent_albedo
         self.t = t
         if seasonality == True: 
             # initial values calculated by non-seasonal model without forcing
@@ -249,12 +252,22 @@ class North_1D():
         Saving the solution array.
         """
         
-        np.save('./solution_without_albedo.npy', self.sol)
+        if self.time_dependent_albedo == True:
+            if self.seasonality == True:  
+                print(os.getcwd)
+                np.save('../ebm/sol_albd1_seasonality1.npy', self.sol)
+            else: 
+                np.save('../ebm/sol_td_alb1_seasonality0.npy', self.sol)
+        else: 
+            if self.seasonality == True:  
+                np.save('../ebm/sol_albd0_seasonality1.npy', self.sol)
+            else: 
+                np.save('../ebm/sol_td_alb0_seasonality0.npy', self.sol)
 
         
 
 # All the constants for the calculation. 
-tinit = 400 #number of years
+tinit = 10 #number of years
 num = tinit*12 #12 steps per year
 A = 211.2 - 18.
 B = 1/0.32
