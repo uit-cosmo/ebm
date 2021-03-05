@@ -105,12 +105,16 @@ class North_1D():
         CO2ppm = 280
         return self.CO2_parameter*np.log((CO2ppm*1.02**(t)/self.CO2_Base))
 
-    def __define_equation_seasonal(self, T, t, forcing): 
+    def __define_equation_seasonal(self, T, t, forcing, time_dependent_albedo): 
         """
         ODE to solve with seasonality.
         """
-        
-        a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
+        if time_dependent_albedo == False:
+            a = self.b0*self.US(self.Tc-self.T_0) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(self.T_0-self.Tc)
+        elif time_dependent_albedo == True: 
+            a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
+        else: 
+            raise Exception("No valid value.")
         if forcing == False:
             dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + 0 * self.v)/self.c
         else: 
@@ -131,7 +135,7 @@ class North_1D():
         return dTdt
     
     
-    def solve_model(self, t, seasonality): 
+    def solve_model(self, t, seasonality, time_dependent_albedo): 
         """
         Solve the 1D (latitudinal) EBM on the northern hemisphere using scipy.odeint. 
         Returns the solution array (see odeint documentation for the structure of the solution).
@@ -141,14 +145,16 @@ class North_1D():
         t: time array
         
         seasonality: True or False for EBM with or without seasonality.
+        
+        time_dependent_albedo: True for time dependent albedo, False for constant albedo. Only for seasonal model. 
         """
         
         self.t = t
         if seasonality == True: 
-            # initial values calculated by non-seasonal model
+            # initial values calculated by non-seasonal model without forcing
             self.sol = odeint(self.__define_equation, self.T_0, t, args= (False,))
             self.T_0 = self.sol[-1, :]
-            self.sol = odeint(self.__define_equation_seasonal, self.T_0, t, args = (True,))
+            self.sol = odeint(self.__define_equation_seasonal, self.T_0, t, args = (True, time_dependent_albedo))
         elif seasonality == False: 
             self.sol = odeint(self.__define_equation, self.T_0, t, args =  (True,))
         else: 
@@ -201,22 +207,55 @@ class North_1D():
         return self.area, ind
     
     def plot_SIA(self): 
-
+        """
+        Function to plot the sea ice area in the northern hemisphere against time. 
+        """
+        
+        year_steps = 25
         self.fig, self.ax = plt.subplots()
-        xticklabels = [str(x) for x in range(0, int(self.t[-1]), 10)]
+        xticklabels = [str(x) for x in range(0, int(self.t[-1]), year_steps)]
         self.ax.plot(self.area, lw = 2)
         self.ax.set_xlabel("Modeltime [year]")
         self.ax.set_xticklabels(xticklabels)
-        self.ax.set_xticks(np.arange(0, self.t.size, 10 * self.t.size/int(self.t[-1])))
+        self.ax.set_xticks(np.arange(0, self.t.size, year_steps * self.t.size/int(self.t[-1])))
         self.ax.grid(True, ls = '--')
         self.ax.set_ylabel("SIA [km²]")
         plt.show()
+        
+    def plot_SIA_month(self, month): 
+        """
+        Function to plot the sea ice area of a specific month in the northern hemisphere against time.
+        
+        Parameters:
+        
+        month = 0-11 (Jan-Dec) 
+        """
+        
+        year_steps = 25
+        month_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+        self.fig, self.ax = plt.subplots()
+        xticklabels = [str(x) for x in range(0, int(self.t[-1]), year_steps)]
+
+        self.ax.plot(self.area[month:-1:int(self.t.size/int(self.t[-1]))], lw = 2)
+        self.ax.set_xlabel("Modeltime [year]")
+        self.ax.set_xticklabels(xticklabels)
+        self.ax.set_xticks(np.arange(0, self.t.size, year_steps * self.t.size/int(self.t[-1])))
+        self.ax.grid(True, ls = '--')
+        self.ax.set_ylabel("SIA in " + month_list[month] + " [km²]")
+        plt.show()
+        
+    def save_solution(self):
+        """
+        Saving the solution array.
+        """
+        
+        np.save('./solution_without_albedo.npy', self.sol)
 
         
 
-# All the constants for calculation. 
-tinit = 100 #number of years
-num = 500
+# All the constants for the calculation. 
+tinit = 400 #number of years
+num = tinit*12 #12 steps per year
 A = 211.2 - 18.
 B = 1/0.32
 D = 0.38
@@ -236,9 +275,17 @@ n = 500
 T0 = 30 - ((np.arange(1, n + 1) - 0.5) * 1/n) * 50
 t = np.linspace(0, tinit, num)
 
+# Initialize model
 m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = 6)
-m.solve_model(t = t, seasonality = True)
+# Solve model
+m.solve_model(t = t, seasonality = True, time_dependent_albedo = True)
+
+# Saving the solution
+m.save_solution()
+# Animating the solution
 m.animate_solution()
+# Calculating the SIA and plotting it
 A, ind = m.calculate_SIA()
 m.plot_SIA()
+m.plot_SIA_month(month = 2)
 
