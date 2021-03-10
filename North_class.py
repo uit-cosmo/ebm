@@ -5,7 +5,7 @@ from scipy.integrate import odeint
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 import os
-
+import sys
 class North_1D(): 
     
     def  __init__(self, A, B, D, s1, s2, s22, Tc, b0, a0, a2, Q, c, n, T_0, CO2_parameter): 
@@ -37,6 +37,7 @@ class North_1D():
         self.t = t
         self.CO2_parameter = CO2_parameter
         self.CO2_Base = 280 #1750 280 ppm CO2
+        self.global_temp = np.zeros(t.size)
         plt.rcParams['font.size'] = 10
         plt.rcParams['axes.linewidth'] = 2
         plt.rcParams['axes.labelsize'] = 10
@@ -204,7 +205,7 @@ class North_1D():
         Returns the area of the sea ice and the index of the latitude.
         """
         
-        ind = (np.argmax(self.sol<-10, axis = 1))
+        ind = (np.argmax(self.sol<-10, axis = 1)) #threshold temperature for ice
         ind[ind == 0] = self.n - 1 
         self.area = 2 * np.pi * self.r_E**2 *(1 - self.theta[ind])
         return self.area, ind
@@ -225,6 +226,13 @@ class North_1D():
         self.ax.set_ylabel("SIA [km²]")
         plt.show()
         
+    def __calculate_global_average_temp(self): 
+        """
+        Calculating the average global temperature for every year, weighted by the areas of the latitude bands. 
+        """
+        weight_area = 2 * np.pi * self.r_E**2 *(1 - self.theta)
+        self.global_temp = np.average(self.sol, weights = weight_area, axis = 1)  
+    
     def plot_SIA_month(self, month): 
         """
         Function to plot the sea ice area of a specific month in the northern hemisphere against time.
@@ -254,7 +262,6 @@ class North_1D():
         
         if self.time_dependent_albedo == True:
             if self.seasonality == True:  
-                print(os.getcwd)
                 np.save('../ebm/sol_albd1_seasonality1.npy', self.sol)
             else: 
                 np.save('../ebm/sol_td_alb1_seasonality0.npy', self.sol)
@@ -263,11 +270,28 @@ class North_1D():
                 np.save('../ebm/sol_albd0_seasonality1.npy', self.sol)
             else: 
                 np.save('../ebm/sol_td_alb0_seasonality0.npy', self.sol)
-
+                
+    def save_SIA_against_T(self):
+        """
+        Saving the global weighted average temperature against the SIA (northern hemisphere).
+        """
+        self.__calculate_global_average_temp()
+        T_against_SIA = np.vstack((self.global_temp, self.area))
+        if self.time_dependent_albedo == True:
+            if self.seasonality == True:  
+                np.savetxt(f'../ebm/T_SIA_albd1_seasonality1_a{int(self.CO2_parameter*1e5)}.txt', T_against_SIA, fmt= "%e", delimiter=',')
+            else: 
+                np.savetxt(f'../ebm/T_SIA_albd1_seasonality0_a{int(self.CO2_parameter*1e5)}.txt', T_against_SIA, fmt= "%e", delimiter=',')
+        else: 
+            if self.seasonality == True:  
+                np.savetxt(f'../ebm/T_SIA_albd0_seasonality1_a{int(self.CO2_parameter*1e5)}.txt', T_against_SIA, fmt= "%e", delimiter=',')
+            else: 
+                np.savetxt(f'../ebm/T_SIA_albd0_seasonality0_a{int(self.CO2_parameter*1e5)}.txt', T_against_SIA, fmt= "%e", delimiter=',')
+    
         
 
 # All the constants for the calculation. 
-tinit = 10 #number of years
+tinit = 250 #number of years
 num = tinit*12 #12 steps per year
 A = 211.2 - 18.
 B = 1/0.32
@@ -287,18 +311,24 @@ n = 500
 
 T0 = 30 - ((np.arange(1, n + 1) - 0.5) * 1/n) * 50
 t = np.linspace(0, tinit, num)
+# Parameters chosen as for ACCCESS and CanESM model
+a_parameter = 5.73471 #5.48945  
+time_dependent_param  = False
 
 # Initialize model
-m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = 6)
+m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = a_parameter)
+
 # Solve model
-m.solve_model(t = t, seasonality = True, time_dependent_albedo = True)
+m.solve_model(t = t, seasonality = True, time_dependent_albedo = time_dependent_param)
+# Calculating, saving and plotting the SIA 
+A, ind = m.calculate_SIA()
+m.save_SIA_against_T()
+m.plot_SIA()
+#m.plot_SIA_month(month = 2)
+sys.exit()
 
 # Saving the solution
 m.save_solution()
 # Animating the solution
 m.animate_solution()
-# Calculating the SIA and plotting it
-A, ind = m.calculate_SIA()
-m.plot_SIA()
-m.plot_SIA_month(month = 2)
 
