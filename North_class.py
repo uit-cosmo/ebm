@@ -123,12 +123,16 @@ class North_1D():
             dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + self.__forcing_CO2(t) * self.v)/self.c
         return dTdt
     
-    def __define_equation(self, T, t, forcing): 
+    def __define_equation(self, T, t, forcing, time_dependent_albedo): 
         """
         ODE to solve without seasonality.
         """
-
-        a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
+        if time_dependent_albedo == False:
+            a = self.b0*self.US(self.Tc-self.T_0) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(self.T_0-self.Tc)
+        elif time_dependent_albedo == True: 
+            a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
+        else: 
+            raise Exception("No valid value.")
         S = 1 + self.s2 * eval_legendre(2, self.X)
         if forcing == False:
             dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + 0 * self.v)/self.c
@@ -156,11 +160,11 @@ class North_1D():
         self.t = t
         if seasonality == True: 
             # initial values calculated by non-seasonal model without forcing
-            self.sol = odeint(self.__define_equation, self.T_0, t, args= (False,))
+            self.sol = odeint(self.__define_equation, self.T_0, t, args= (False, time_dependent_albedo))
             self.T_0 = self.sol[-1, :]
             self.sol = odeint(self.__define_equation_seasonal, self.T_0, t, args = (True, time_dependent_albedo))
         elif seasonality == False: 
-            self.sol = odeint(self.__define_equation, self.T_0, t, args =  (True,))
+            self.sol = odeint(self.__define_equation, self.T_0, t, args =  (True, time_dependent_albedo))
         else: 
             raise Exception("No valid value.")
         return self.sol
@@ -291,7 +295,7 @@ class North_1D():
         
 
 # All the constants for the calculation. 
-tinit = 250 #number of years
+tinit = 100 #number of years
 num = tinit*12 #12 steps per year
 A = 211.2 - 18.
 B = 1/0.32
@@ -319,12 +323,14 @@ time_dependent_param  = False
 m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = a_parameter)
 
 # Solve model
-m.solve_model(t = t, seasonality = True, time_dependent_albedo = time_dependent_param)
+m.solve_model(t = t, seasonality = False, time_dependent_albedo = time_dependent_param)
 # Calculating, saving and plotting the SIA 
 A, ind = m.calculate_SIA()
 m.save_SIA_against_T()
 m.plot_SIA()
-#m.plot_SIA_month(month = 2)
+m.save_solution()
+#m.animate_solution()
+#m.plot_SIA_month(month = 8)
 sys.exit()
 
 # Saving the solution
