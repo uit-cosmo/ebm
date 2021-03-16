@@ -8,7 +8,7 @@ import os
 import sys
 class North_1D(): 
     
-    def  __init__(self, A, B, D, s1, s2, s22, Tc, b0, a0, a2, Q, c, n, T_0, CO2_parameter): 
+    def  __init__(self, A, B, D, s1, s2, s22, Tc, b0, a0, a2, Q, c, n, T_0, CO2_parameter, stdv_noise): 
         self.A = A 
         self.B = B
         self.D = D
@@ -32,12 +32,12 @@ class North_1D():
         self.laplacian =self.__construct_laplacian().toarray()
         self.__set_boundary_conditions()
         self.sol = []
-        self.fig, self.ax = plt.subplots()
         self.line = []
         self.t = t
         self.CO2_parameter = CO2_parameter
         self.CO2_Base = 280 #1750 280 ppm CO2
-        self.global_temp = np.zeros(t.size)
+        self.global_temp = np.zeros(self.t.size)
+        self.noise_array = np.random.normal(0, stdv_noise, self.t.size)
         plt.rcParams['font.size'] = 10
         plt.rcParams['axes.linewidth'] = 2
         plt.rcParams['axes.labelsize'] = 10
@@ -94,7 +94,7 @@ class North_1D():
     def __forcing(self, t):
         return -0.5 + 0.03*t
     
-    def __forcing_CO2(self, t): 
+    def __forcing_CO2(self, t, noise): 
         """
         Formula for CO2 forcing. 
         
@@ -105,39 +105,65 @@ class North_1D():
         """
         
         CO2ppm = 280
-        return self.CO2_parameter*np.log((CO2ppm*1.02**(t)/self.CO2_Base))
-
-    def __define_equation_seasonal(self, T, t, forcing, time_dependent_albedo): 
+        CO2_term = self.CO2_parameter*np.log((CO2ppm*1.02**(t)/self.CO2_Base))
+        if noise == True: 
+            CO2_term = CO2_term + self.__noise(t)
+        return CO2_term 
+    
+    def __define_albedo(self, T):
+        """
+        Function to define the albedo function.
+        """
+        
+        return self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * \
+                self.US(T-self.Tc)
+    
+    def __choose_albedo(self, T, time_dependent_albedo): 
+        """
+        Function to choose between time dependent albedo or non-time-dependent albedo. 
+        In case of constant albedo, the initial temperature vector is chosen to calculate the albedo.
+        """
+        
+        vals = {True : self.__define_albedo(T),  False : self.__define_albedo(self.T_0)}
+        return vals[int(time_dependent_albedo)]
+        
+    def __choose_forcing(self, t, noise, forcing):
+        """
+        Function to choose the forcing function with or without noise. 
+        """
+        
+        vals = {True : self.__forcing_CO2(t, noise),  False : 0}
+        return vals[int(forcing)]
+    
+    def __define_equation_seasonal(self, T, t, forcing, time_dependent_albedo, noise): 
         """
         ODE to solve with seasonality.
         """
-        if time_dependent_albedo == False:
-            a = self.b0*self.US(self.Tc-self.T_0) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(self.T_0-self.Tc)
-        elif time_dependent_albedo == True: 
-            a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
-        else: 
-            raise Exception("No valid value.")
-        if forcing == False:
-            dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + 0 * self.v)/self.c
-        else: 
-            dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + self.__forcing_CO2(t) * self.v)/self.c
+        
+        a = self.__choose_albedo(T, time_dependent_albedo)
+        dTdt =  (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*self.__incident_solar_radiation(t)*a + self.__choose_forcing(t, noise, forcing) * self.v)/self.c
         return dTdt
     
-    def __define_equation(self, T, t, forcing): 
+    def __define_equation(self, T, t, forcing, time_dependent_albedo, noise): 
         """
         ODE to solve without seasonality.
         """
-
-        a = self.b0*self.US(self.Tc-T) + (self.a0 + self.a2 * eval_legendre(2, self.X)) * self.US(T-self.Tc)
+        
+        a = self.__choose_albedo(T, time_dependent_albedo)
         S = 1 + self.s2 * eval_legendre(2, self.X)
-        if forcing == False:
-            dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + 0 * self.v)/self.c
-        else:
-            dTdt = (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + self.__forcing_CO2(t) * self.v)/self.c
+        dTdt =  (-self.A*self.v - self.B*T + self.D*np.dot(self.laplacian, T) + self.Q*S*a + 
+                    self.__choose_forcing(t, noise, forcing) * self.v)/self.c
         return dTdt
     
     
-    def solve_model(self, t, seasonality, time_dependent_albedo): 
+    def __noise(self, t):
+        """
+        Function to interpolate noise between the defined timesteps. 
+        The odeint algorithm chooses the time steps to solve the equation on its own so one needs the noise level at those points. 
+        """
+        return np.interp(t, self.t, self.noise_array)
+    
+    def solve_model(self, t, seasonality, time_dependent_albedo, noise): 
         """
         Solve the 1D (latitudinal) EBM on the northern hemisphere using scipy.odeint. 
         Returns the solution array (see odeint documentation for the structure of the solution).
@@ -156,11 +182,12 @@ class North_1D():
         self.t = t
         if seasonality == True: 
             # initial values calculated by non-seasonal model without forcing
-            self.sol = odeint(self.__define_equation, self.T_0, t, args= (False,))
+            self.sol = odeint(self.__define_equation, self.T_0, t, args= (False, time_dependent_albedo, False))
             self.T_0 = self.sol[-1, :]
-            self.sol = odeint(self.__define_equation_seasonal, self.T_0, t, args = (True, time_dependent_albedo))
+            
+            self.sol = odeint(self.__define_equation_seasonal, self.T_0, t, args = (True, time_dependent_albedo, noise))
         elif seasonality == False: 
-            self.sol = odeint(self.__define_equation, self.T_0, t, args =  (True,))
+            self.sol = odeint(self.__define_equation, self.T_0, t, args =  (True, time_dependent_albedo, noise))
         else: 
             raise Exception("No valid value.")
         return self.sol
@@ -183,7 +210,7 @@ class North_1D():
     
     def __animate(self, i):
         if i < self.t.size:
-            self.line.set_ydata(self.sol[i, :])   # update the data.
+            self.line.set_ydata(self.sol[300*i, :])   # update the data.
         return self.line,
 
     
@@ -230,6 +257,7 @@ class North_1D():
         """
         Calculating the average global temperature for every year, weighted by the areas of the latitude bands. 
         """
+        
         weight_area = 2 * np.pi * self.r_E**2 *(1 - self.theta)
         self.global_temp = np.average(self.sol, weights = weight_area, axis = 1)  
     
@@ -275,6 +303,7 @@ class North_1D():
         """
         Saving the global weighted average temperature against the SIA (northern hemisphere).
         """
+        
         self.__calculate_global_average_temp()
         T_against_SIA = np.vstack((self.global_temp, self.area))
         if self.time_dependent_albedo == True:
@@ -291,7 +320,7 @@ class North_1D():
         
 
 # All the constants for the calculation. 
-tinit = 250 #number of years
+tinit = 1 #number of years
 num = tinit*12 #12 steps per year
 A = 211.2 - 18.
 B = 1/0.32
@@ -313,22 +342,26 @@ T0 = 30 - ((np.arange(1, n + 1) - 0.5) * 1/n) * 50
 t = np.linspace(0, tinit, num)
 # Parameters chosen as for ACCCESS and CanESM model
 a_parameter = 5.73471 #5.48945  
-time_dependent_param  = False
+time_dependent_param  = True
 
 # Initialize model
-m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = a_parameter)
+m = North_1D(A = A, B = B, D = D, s1 = s1, s2 = s2, s22 = s22, Tc = Tc, b0 = b0, a0 = a0, a2 = a2, Q = Q, c = c, n = n, T_0 = T0, CO2_parameter = a_parameter, stdv_noise = 10)
 
 # Solve model
-m.solve_model(t = t, seasonality = True, time_dependent_albedo = time_dependent_param)
+m.solve_model(t = t, seasonality = True, time_dependent_albedo = time_dependent_param, noise =  True)
 # Calculating, saving and plotting the SIA 
 A, ind = m.calculate_SIA()
-m.save_SIA_against_T()
 m.plot_SIA()
+#m.save_SIA_against_T()
+#m.animate_solution()
+
 #m.plot_SIA_month(month = 2)
 sys.exit()
 
 # Saving the solution
 m.save_solution()
 # Animating the solution
-m.animate_solution()
+
+
+
 
