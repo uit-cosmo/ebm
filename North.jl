@@ -4,7 +4,8 @@ module North
     using LinearAlgebra
     using DifferentialEquations
     using StatsBase
-    
+    using Sundials
+
     A = 211.2 - 18.
     B = 1/0.32
     D = 0.38
@@ -24,7 +25,6 @@ module North
     theta = collect(0:1:n-1) * Delta_theta
     
     lam = (1 .- theta.^2)/(Delta_theta.^2)
-
     CO2_parameter = 6
     CO2_base = 280
     v = ones(n)
@@ -85,7 +85,7 @@ module North
     end
 
     function define_equation(dTdt, T, p, t) 
-        seasonality, albedo_td = p 
+        albedo_td, seasonality = p 
         if albedo_td == true
             a = albedo(T)
         else
@@ -114,7 +114,6 @@ module North
             else 
                 ind[i] = findfirst(x -> x <- 10, X[:, i])
             end
-           
         end
         area = 2 .* pi .* r_E^2 .* (1 .- theta[ind])
     end
@@ -124,14 +123,29 @@ module North
         global_temp = mean(sol, weights(weight_area), dims = 1)
     end
 
-
-
     function initialize_problem(p, noise, tspan)
         if noise == true 
             W = WienerProcess(0.0,0.0,0.0)
             prob = SDEProblem(define_equation, g, T0, tspan, p, noise = W)
         else 
-            prob = ODEProblem{isinplace}(define_equation, T0, tspan, p)   
+            prob = ODEProblem(define_equation, T0, tspan, p)   
+        end
+    end
+
+    function solve_problem(p, noise, tspan)
+        prob = initialize_problem(p, noise, tspan)
+        if noise == true
+            @time begin
+            sol = solve(prob, ImplicitRKMil(), saveat = 1/12, progress = true,
+                        progress_steps = 1, adaptive=false,dt=0.01)
+            end
+        else
+            @time begin 
+                # Rodas4(), or TRBDF2() seem to be the fastest solvers 
+                # CVODE_BDF() from Sundials package is 10x faster: https://github.com/SciML/Sundials.jl
+                sol =  solve(prob, CVODE_BDF(), saveat = 1/12, dt = 0.01,progress = true,
+                progress_steps = 1)
+            end
         end
     end
     const laplacian = construct_laplacian()

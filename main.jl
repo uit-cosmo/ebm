@@ -7,22 +7,14 @@ using Logging: global_logger
 using TerminalLoggers: TerminalLogger
 global_logger(TerminalLogger())
 
-
-
-
-tspan = (0.0,400.9)
+tspan = (0.0,41)
 albedo_td = true
 seasonality = true
-noise = true
-p = (true, true)
+noise = false
 
+println(@__DIR__)
 
-prob = North.initialize_problem((albedo_td, seasonality), noise, tspan)
-#sol = solve(prob, TRBDF2())
-@time begin
-    sol_noise = solve(prob, ImplicitRKMil(), saveat = 1/12, progress = true,
-    progress_steps = 1, adaptive=false,dt=0.01)
-end
+sol_noise =  North.solve_problem((albedo_td, seasonality), noise, tspan)
 
 plt2 = plot(sol_noise[:, end]);
 display(plt2)
@@ -33,12 +25,13 @@ end
     glob_temp = North.calculate_global_average_T(sol_noise)
 end
 @time begin
-    glob_temp_year = mean(reshape(glob_temp, :, 12), dims = 2)
+    glob_temp_year = mean(reshape(glob_temp[:, 1:end-1], :, 12), dims = 2)
 end
+
 println(size(glob_temp_year))
 display(plot(glob_temp_year[:, 1]))
 display(plot(sia))
 #println(sia)
 @gif for i ∈ 1:12:size(sol_noise)[2]
-    plot(sol_noise[:, i])
+    plot(sol_noise[:, i], ylims = (-20,30))
 end
