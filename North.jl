@@ -5,6 +5,12 @@ module North
     using DifferentialEquations
     using StatsBase
     using Sundials
+    using CSV
+    using Tables
+    using Interpolations
+    using ODEInterfaceDiffEq
+    using Plots
+    using LSODA
 
     A = 211.2 - 18.
     B = 1/0.32
@@ -27,6 +33,7 @@ module North
     lam = (1 .- theta.^2)/(Delta_theta.^2)
     CO2_parameter = 6
     CO2_base = 280
+    CO2ppm = 280 
     v = ones(n)
     T0 = 30 .- ((collect(1:1:n) .- 0.5) .* 1/n) .* 50
 
@@ -52,7 +59,7 @@ module North
             laplacian = sparse.diags(
                 diagonals=[main, lower, upper],
                 offsets=[0, -1, 1], shape=(n, n),
-                format='csr')
+                format="csr")
             laplacian.toarray()
             
             # boundary conditions
@@ -79,13 +86,17 @@ module North
             (s2 + s22 + cos(4 * pi * t)) * legendre.(X, 2)
     end
 
-    function forcing_CO2(t)
-        CO2ppm = 280 
-        CO2 = CO2_parameter * log((CO2ppm*1.02^t)/CO2_base)
+    function forcing_CO2(t, historical_forcing)
+        if historical_forcing == true 
+            f = interpolate_historical_forcing(t) 
+        else
+            f = CO2_parameter * log((CO2ppm*1.02^t)/CO2_base)
+        end
+        f
     end
 
     function define_equation(dTdt, T, p, t) 
-        albedo_td, seasonality = p 
+        albedo_td, seasonality, historical_forcing = p 
         if albedo_td == true
             a = albedo(T)
         else
@@ -96,8 +107,10 @@ module North
         else 
             S = 1 .+ s2 * legendre.(X, 2)
         end
+        #println(forcing_CO2(t, historical_forcing))
+        dTdt .= (-A*v - B*T + D * (laplacian * T) + Q*S.*a + 
+                    forcing_CO2(t, historical_forcing)*v)/c
 
-        dTdt .= (-A*v - B*T + D * (laplacian * T) + Q*S.*a + forcing_CO2(t)*v)/c
     end
 
     function g(dTdt, T,p,t)
@@ -124,11 +137,17 @@ module North
     end
 
     function initialize_problem(p, noise, tspan)
+        # Solve problem one time to get good initial values 
+        prob = ODEProblem(define_equation, T0, (0.0,10), p)   
+        sol =  solve(prob, CVODE_BDF(), save_everystep=false, dt = 0.01, progress = true,
+            progress_steps = 1)
+        T0_new = sol[:, end]
+
         if noise == true 
             W = WienerProcess(0.0,0.0,0.0)
             prob = SDEProblem(define_equation, g, T0, tspan, p, noise = W)
         else 
-            prob = ODEProblem(define_equation, T0, tspan, p)   
+            prob = ODEProblem(define_equation, T0_new, tspan, p)   
         end
     end
 
@@ -143,10 +162,30 @@ module North
             @time begin 
                 # Rodas4(), or TRBDF2() seem to be the fastest solvers 
                 # CVODE_BDF() from Sundials package is 10x faster: https://github.com/SciML/Sundials.jl
+                # radau() from ODEInterfaceDiffEq package also very fast
                 sol =  solve(prob, CVODE_BDF(), saveat = 1/12, dt = 0.01,progress = true,
                 progress_steps = 1)
             end
         end
+    end
+
+    function load_historical_forcing() 
+        directory = @__DIR__
+        forcing_data =  directory * "/Imbalance.txt"
+        forcing = CSV.File(forcing_data,  skipto=2,  delim=" ", 
+        ignorerepeated=true, drop = [1], limit = 131) |> Tables.matrix
+        forcing_sum = sum(forcing, dims = 2)
+    end
+
+    function interpolate_historical_forcing(x) 
+        forcing =  load_historical_forcing()  
+        itp = LinearInterpolation(collect(0:1:size(forcing, 1)-1), 
+                                forcing[:, 1])
+        itp(x)
+    end
+
+    function save_global_temp() 
+        nothing
     end
     const laplacian = construct_laplacian()
 
