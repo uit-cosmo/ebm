@@ -8,17 +8,16 @@ module North
     using CSV
     using Tables
     using Interpolations
-    using ODEInterfaceDiffEq
     using Plots
-    using LSODA
+    using DataFrames
 
-    A = 211.2 - 18.
-    B = 1/0.32
+    A = 211.2 - 19#18.
+    B = 1/0.26
     D = 0.38
     s1 = -0.796
     s2 = -0.482
     s22 = 0.147
-    Tc = -10
+    Tc = -6
     b0 = 0.38
     a0 = 0.697
     a2 = -0.0779
@@ -36,7 +35,7 @@ module North
     CO2ppm = 280 
     v = ones(n)
     T0 = 30 .- ((collect(1:1:n) .- 0.5) .* 1/n) .* 50
-
+    directory = @__DIR__
 
     function construct_laplacian()
         py"""
@@ -114,7 +113,7 @@ module North
     end
 
     function g(dTdt, T,p,t)
-        dTdt .= 0.5
+        dTdt .= 0.05
     end
 
     function calculate_SIA(sol)
@@ -122,10 +121,10 @@ module North
         #ind = mapslices(t -> replace(u -> findfirst(x -> x < -10, t), Nothing => 0), X, dims = 1)
         ind = Array{Int16}(undef, size(X)[2]) #zeros(size(X)[2])
         for i = 1:size(X)[2]
-            if isnothing(findfirst(x -> x <- 10, X[:, i])) 
+            if isnothing(findfirst(x -> x < Tc, X[:, i])) 
                 ind[i] = n
             else 
-                ind[i] = findfirst(x -> x <- 10, X[:, i])
+                ind[i] = findfirst(x -> x < Tc, X[:, i])
             end
         end
         area = 2 .* pi .* r_E^2 .* (1 .- theta[ind])
@@ -138,15 +137,22 @@ module North
 
     function initialize_problem(p, noise, tspan)
         # Solve problem one time to get good initial values 
-        prob = ODEProblem(define_equation, T0, (0.0,10), p)   
-        sol =  solve(prob, CVODE_BDF(), save_everystep=false, dt = 0.01, progress = true,
-            progress_steps = 1)
-        T0_new = sol[:, end]
 
         if noise == true 
             W = WienerProcess(0.0,0.0,0.0)
-            prob = SDEProblem(define_equation, g, T0, tspan, p, noise = W)
+            prob = SDEProblem(define_equation, g, T0, (0.0,20), p, noise = W)   
+            sol =  solve(prob, ImplicitRKMil(), saveat = 1, dt = 0.01, progress = true,
+                progress_steps = 1)
+            #prob = ODEProblem(define_equation, T0, (0.0,10), p)   
+            #sol =  solve(prob, CVODE_BDF(), save_everystep=false, dt = 0.01, progress = true,
+            #    progress_steps = 1)
+            T0_new = sol[:, end]
+            prob = SDEProblem(define_equation, g, T0_new, tspan, p, noise = W)
         else 
+            prob = ODEProblem(define_equation, T0, (0.0,20), p)   
+            sol =  solve(prob, CVODE_BDF(), save_everystep=false, dt = 0.01, progress = true,
+                progress_steps = 1)
+            T0_new = sol[:, end]
             prob = ODEProblem(define_equation, T0_new, tspan, p)   
         end
     end
@@ -170,7 +176,6 @@ module North
     end
 
     function load_historical_forcing() 
-        directory = @__DIR__
         forcing_data =  directory * "/Imbalance.txt"
         forcing = CSV.File(forcing_data,  skipto=2,  delim=" ", 
         ignorerepeated=true, drop = [1], limit = 131) |> Tables.matrix
@@ -184,8 +189,8 @@ module North
         itp(x)
     end
 
-    function save_global_temp() 
-        nothing
+    function save_global_temp(sol) 
+        CSV.write(directory * "/glob_temp_m.txt", convert(DataFrame, calculate_global_average_T(sol)'))
     end
     const laplacian = construct_laplacian()
 
