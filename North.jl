@@ -161,11 +161,10 @@ module North
     function calculate_SIA(sol)
         """
         Calculates the sea ice area on the northern hemisphere. 
-    
         """
         #ind = mapslices(t -> replace(u -> findfirst(x -> x < -10, t), Nothing => 0), X, dims = 1)
         ind = Array{Int16}(undef, size(sol)[2]) #zeros(size(X)[2])
-        for i = 1:size(X)[2]
+        for i = 1:size(sol)[2]
             if isnothing(findfirst(x -> x < Tc, sol[:, i])) 
                 ind[i] = n
             else 
@@ -176,6 +175,9 @@ module North
     end
 
     function calculate_global_average_T(sol) 
+        """
+        Calculating the average global temperature for every year, weighted by the areas of the latitude bands. 
+        """
         weight_area = 2 .* pi .* r_E^2 .* (1 .- theta)
         global_temp = mean(sol, weights(weight_area), dims = 1)
     end

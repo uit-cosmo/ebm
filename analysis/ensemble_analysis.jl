@@ -2,7 +2,7 @@ module EnsembleAnalysis
     using PyCall
     using JLD2
     using DifferentialEquations
-    using StatsBase
+    using StatsBase, HypothesisTests
     include("../North.jl")
     include("../Plotting_functions.jl")
     using .North
@@ -10,7 +10,7 @@ module EnsembleAnalysis
     
     directory = @__DIR__
     directory = directory[1:end-8]
-    JLD2.@load directory * "/output/" * "ensemble_sol_150r.h5" sol
+    JLD2.@load directory * "/output/" * "ensemble_sol_100r.jld" sol
 
 
     function rolling_mean(array, window_size)
@@ -68,13 +68,27 @@ module EnsembleAnalysis
             glob_temp[:, i] = North.calculate_global_average_T(sol[:,:,i])
             glob_temp_year[:, i] = mean(reshape(glob_temp[1:end-1, i], 12, :), dims = 1)
             sia[:, i] = North.calculate_SIA(sol[:,:,i])
-            sia_rolling[:, i] .= rolling_mean(sia[:, i], window_size)
+            sia_rolling[:, i] .= rolling_mean(sia[:, i], 12)
             sia_var[:, i] = variance_autocorrelation("variance", sia[:, i], window_size, 3)
         end
-
-        PlottingFunctions.line_plot_ensemble(sia_var, "var SIA", 25)
+        quantiles_sia = calculate_quantile(sia, 0.1, 12)
+        quantiles_var = calculate_quantile(sia_var, 0.1, 50)
+        mean_sia_var = mean(sia_var[50:end, :], dims = 2)
+        mean_sia = mean(sia, dims = 2)
+        #PlottingFunctions.confidence_plot(quantiles_var, mean_sia_var, 25, "variance")
+        PlottingFunctions.confidence_plot(quantiles_sia, mean_sia, 250, "sia")
+        #PlottingFunctions.line_plot_ensemble(sia_var, "var SIA", 25)
         #PlottingFunctions.line_plot_ensemble(glob_temp_year, "T", 25)
         #PlottingFunctions.line_plot_ensemble(sia_rolling, "SIA", 25)
+    end
+    
+    function calculate_quantile(array, p, window_size)
+        array = array[window_size:end, :]
+        quantiles = Array{Float32}(undef, size(array, 1), 2)
+        quantiles[:, 2] = mapslices(x -> quantile(x, 1 - p), array, dims = 2)#quantile(array[1,:], 1 - p)
+        quantiles[:, 1] = mapslices(x -> quantile(x, p), array, dims = 2)
+        
+        return quantiles
     end
     
     analysis()

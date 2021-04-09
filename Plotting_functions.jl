@@ -43,6 +43,20 @@ module PlottingFunctions
         plt.show()
     end
 
+    function confidence_plot(quantiles, mean, steps_years, y_label)
+        fig, ax = plt.subplots()
+        ax.set_xlabel("Modeltime [year]")
+        xticklabels = [string(x) for x = 0:steps_years:size(quantiles, 1)]
+        ax.set_xticks(collect(0:steps_years:size(quantiles, 1)))
+        ax.set_xticklabels(xticklabels)
+        ax.grid(true, ls = "--")
+        ax.set_ylabel(y_label)
+        ax.fill_between(collect(1:1:size(quantiles, 1)), quantiles[:, 1], quantiles[:, 2], alpha = 0.5)
+        ax.plot(collect(1:1:size(mean, 1)), mean, lw = 2)
+
+        plt.show()
+    end
+
     function plot_historical_simulation(array_sim)
         forcing = load_historical_forcing() 
         temp = load_historical_temperature()
