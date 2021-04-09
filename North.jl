@@ -16,7 +16,7 @@ module North
     using DataFrames
     using JLD2
 
-    runs = 150
+    runs = 100
     A = 211.2 - 19#18.
     B = 1/0.26
     D = 0.38
@@ -103,7 +103,7 @@ module North
         t: Time vector in years.    
         """
         1 .+ s1 * cos(2 * pi * t) * legendre.(X, 1) + 
-            (s2 + s22 + cos(4 * pi * t)) * legendre.(X, 2) .+ (X .- 0.5).^3/4
+            (s2 + s22 + cos(4 * pi * t)) * legendre.(X, 2) .+ (X .- 0.5).^3/4 #last term is lapse-rate feedback
     end
 
     function forcing_CO2(t, historical_forcing)
@@ -125,7 +125,7 @@ module North
         if historical_forcing == true 
             f = interpolate_historical_forcing(t) 
         else
-            f = CO2_parameter * log((CO2ppm*1.005^t)/CO2_base)
+            f = CO2_parameter * log((CO2ppm*1.01^t)/CO2_base)
         end
         f
     end
@@ -213,7 +213,6 @@ module North
     end
 
     function solve_problem(p, noise, tspan, ensemble)
-        solve_model(self, t, seasonality, time_dependent_albedo, noise): 
         """
         Solve the 1D (latitudinal) EBM on the northern hemisphere. 
         Returns the solution array.
