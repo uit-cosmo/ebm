@@ -1,4 +1,9 @@
 module PlottingFunctions 
+    ###############################################################
+    #This module contains the functions to plot the solution etc. #
+    #PyCall/PyPlot/matplotlib should be installed                 #
+    ###############################################################
+
     using PyCall
     import PyPlot; const plt = PyPlot
     pygui(true)
@@ -23,6 +28,21 @@ module PlottingFunctions
         plt.show()
     end
 
+    function line_plot_ensemble(array, y_label, steps_years) 
+        runs = size(array, 2)
+        fig, ax = plt.subplots()
+        ax.set_xlabel("Modeltime [year]")
+        xticklabels = [string(x) for x = 0:steps_years:size(array, 1)]
+        ax.set_xticks(collect(0:steps_years:size(array, 1)))
+        ax.set_xticklabels(xticklabels)
+        ax.grid(true, ls = "--")
+        ax.set_ylabel(y_label)
+        for i = 1:1:runs
+            ax.plot(array[:, i], lw = 2)
+        end
+        plt.show()
+    end
+
     function plot_historical_simulation(array_sim)
         forcing = load_historical_forcing() 
         temp = load_historical_temperature()
@@ -36,7 +56,7 @@ module PlottingFunctions
         ax.grid(true, ls = "--")
         ax.set_ylabel("Temperature [K]")
         ax2.set_ylabel("Forcing [W/m²]")
-        ax.plot(array_sim, lw = 2, label = "sim. T")
+        ax.plot(collect(size(temp, 1)-size(array_sim, 1):1:size(temp, 1)-1),array_sim, lw = 2, label = "sim. T")
         ax.plot(temp, lw = 2, ls = "--", label = "hist. T")
         ax2.plot(forcing, lw = 2, color = "C2", label = "forcing")
         fig.legend()
@@ -56,7 +76,7 @@ module PlottingFunctions
         ax.set_xticklabels(xticklabels)
         ax.grid(true, ls = "--")
         ax.set_ylabel("SIA [km²]")
-        ax.plot(array_sim, lw = 2, label = "sim. SIA")
+        ax.plot(collect(size(sia, 1)-size(array_sim, 1):1:size(sia, 1)-1),array_sim, lw = 2, label = "sim. SIA")
         ax.plot(sia, lw = 2, ls = "--", label = "hist. SIA")
         fig.legend()
 
@@ -65,13 +85,13 @@ module PlottingFunctions
 
     function load_ice_area_cmip6() 
         directory = @__DIR__
-        sia_data =  directory * "/" * "ACCESS-CM2.r1i1p1f1" * ".txt"
+        sia_data =  directory * "/input/" * "ACCESS-CM2.r1i1p1f1" * ".txt"
         sia = CSV.File(sia_data, delim=" ") |> Tables.matrix
     end
     
     function load_historical_forcing() 
         directory = @__DIR__
-        forcing_data =  directory * "/" * "Imbalance" * ".txt"
+        forcing_data =  directory * "/input/" * "Imbalance" * ".txt"
         forcing = CSV.File(forcing_data,  skipto=2,  delim=" ", 
         ignorerepeated=true, drop = [1], limit = 131) |> Tables.matrix
         forcing = sum(forcing, dims = 2)
@@ -79,7 +99,7 @@ module PlottingFunctions
 
     function load_historical_temperature()
         directory = @__DIR__
-        temp_data =  directory * "/" * "HadCrut3gl" * ".txt"
+        temp_data =  directory * "/input/" * "HadCrut3gl" * ".txt"
         temp = CSV.File(temp_data,  skipto=2) |> Tables.matrix
     end
 end
