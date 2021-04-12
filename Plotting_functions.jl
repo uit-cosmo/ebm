@@ -16,6 +16,8 @@ module PlottingFunctions
     rcParams["axes.labelweight"] = "bold"
     rcParams["font.weight"] = "bold"
 
+    directory = @__DIR__
+
     function simple_line_plot(array, y_label, steps_years)
         fig, ax = plt.subplots()
         ax.set_xlabel("Modeltime [year]")
@@ -43,17 +45,20 @@ module PlottingFunctions
         plt.show()
     end
 
-    function confidence_plot(quantiles, mean, steps_years, y_label)
-        fig, ax = plt.subplots()
+    function confidence_plot(quantiles, starting_year, mean, steps_years, y_label, figurename)
+        fig, ax = plt.subplots(figsize =(6,3))
+
         ax.set_xlabel("Modeltime [year]")
-        xticklabels = [string(x) for x = 0:steps_years:size(quantiles, 1)]
-        ax.set_xticks(collect(0:steps_years:size(quantiles, 1)))
+        xticklabels = [string(x) for x = 0:steps_years:size(quantiles, 1)+50]
+        ax.set_xticks(collect(0:steps_years:size(quantiles, 1)+50))
         ax.set_xticklabels(xticklabels)
         ax.grid(true, ls = "--")
         ax.set_ylabel(y_label)
-        ax.fill_between(collect(1:1:size(quantiles, 1)), quantiles[:, 1], quantiles[:, 2], alpha = 0.5)
-        ax.plot(collect(1:1:size(mean, 1)), mean, lw = 2)
-
+        println(size(quantiles, 1), size(mean, 1))
+        ax.fill_between(collect(starting_year:1:size(quantiles, 1) - 1 + starting_year), quantiles[:, 1], quantiles[:, 2], alpha = 0.5)
+        ax.plot(collect(starting_year:1:size(mean, 1) - 1 + starting_year), mean, lw = 2)
+        ax.set_xlim(0,250)
+        plt.savefig(directory * "/output/confidence_" * figurename * ".svg", bbox_inches = "tight", dpi = 600)
         plt.show()
     end
 
