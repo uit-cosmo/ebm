@@ -14,9 +14,10 @@ module North
     using Interpolations
     using Plots
     using DataFrames
-    using JLD2
+    using JLD2 
+    using DelimitedFiles
 
-    runs = 100
+    runs = 2
     A = 211.2 - 19#18.
     B = 1/0.26
     D = 0.38
@@ -282,6 +283,13 @@ module North
         150 runs with 250 years (12 steps per year) ~ 1.8 GB.
         """
         @save directory * "/output/" * "ensemble_sol_$(runs)r.jld" sol
+    end
+
+
+    function save_ensemble_csv(sol)
+        for i= 1:1:runs
+            writedlm(directory * "/output/" * "run$(i).csv",  sol[:, :, i], ',')
+        end
     end
 
     const laplacian = construct_laplacian()

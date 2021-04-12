@@ -33,6 +33,7 @@ println(@__DIR__)
 
 sol_noise =  North.solve_problem((albedo_td, seasonality, historical_forcing), noise, tspan, ensemble)
 if ensemble == true 
+    #North.save_ensemble_csv(sol_noise) 
     North.save_ensemble(sol_noise)
 end
 
