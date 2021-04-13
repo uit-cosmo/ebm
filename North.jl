@@ -17,7 +17,7 @@ module North
     using JLD2 
     using DelimitedFiles
 
-    runs = 2
+    runs = 10
     A = 211.2 - 19#18.
     B = 1/0.26
     D = 0.38
@@ -198,7 +198,7 @@ module North
 
         if noise == true 
             W = WienerProcess(0.0,0.0,0.0)
-            prob = SDEProblem(define_equation, g, T0, (0.0,10), p, noise = W)   
+            prob = SDEProblem(define_equation, g, T0, (0.0,20), p, noise = W)   
             sol =  solve(prob, ImplicitRKMil(), save_everystep=false, dt = 0.01, progress = true,
                 progress_steps = 1)
             #prob = ODEProblem(define_equation, T0, (0.0,10), p)   
@@ -231,6 +231,12 @@ module North
         if noise == true
             if ensemble == true 
                 ensembleprob = EnsembleProblem(prob) 
+
+                # A run without noise is saved for analysis 
+                sol_no_noise = solve(prob, ImplicitRKMil(), saveat = 1/12, progress = true,
+                progress_steps = 1, adaptive=false,dt=0.01)
+                save_ensemble(sol_no_noise, "temp_no_noise") 
+
                 sol = solve(ensembleprob,ImplicitRKMil(), saveat = 1/12, progress = true,
                 progress_steps = 1, adaptive=false,dt=0.01, trajectories=runs)
             else
@@ -277,16 +283,20 @@ module North
         CSV.write(directory * "/output/glob_temp_m.txt", convert(DataFrame, calculate_global_average_T(sol)'))
     end
 
-    function save_ensemble(sol) 
+    function save_ensemble(sol, filename) 
         """
         Function to save ensemble run as .jld (hdf5). 
         150 runs with 250 years (12 steps per year) ~ 1.8 GB.
         """
-        @save directory * "/output/" * "ensemble_sol_$(runs)r.jld" sol
+        @save directory * "/output/" * filename * "$(runs)r.jld" sol
     end
 
 
     function save_ensemble_csv(sol)
+        """
+        Function to save every ensemble run as .csv. 
+        1 run with 250 years (12 steps per year) ~ 28 MB.
+        """
         for i= 1:1:runs
             writedlm(directory * "/output/" * "run$(i).csv",  sol[:, :, i], ',')
         end
