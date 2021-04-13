@@ -1,0 +1,6 @@
+*.jld
+*.png
+*.svg
+*.npy 
+*.hdf5
+*.h5
