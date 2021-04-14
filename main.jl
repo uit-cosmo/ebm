@@ -18,7 +18,7 @@ module main
     using LaTeXStrings
     global_logger(TerminalLogger())
 
-    albedo_td = false
+    albedo_td = true
     seasonality = true
     historical_forcing =  false
     noise = true
@@ -27,7 +27,7 @@ module main
     if historical_forcing == true
         tspan = (0.0,130)
     else
-        tspan = (0.0,600)
+        tspan = (0.0,250)
     end
 
     println(@__DIR__)

@@ -183,11 +183,21 @@ module North
         global_temp = mean(sol, weights(weight_area), dims = 1)
     end
 
-    function initialize_problem(p, noise, tspan)
+
+    function initial_temperature(p)
         """
-        Initialize the problem as ODE or SDE depending on input parameter noise.
         The equation gets solved for 20 years to get an initial guess for T,
         before running it for the whole tspan.  
+        """
+        prob = ODEProblem(define_equation, T0, (0.0,20), p)   
+        sol =  solve(prob, CVODE_BDF(), save_everystep=false, dt = 0.01, progress = true,
+            progress_steps = 1)
+        T0_new = sol[:, end]
+    end
+
+    function initialize_problem(p, noise, tspan, T0_new)
+        """
+        Initialize the problem as ODE or SDE depending on input parameter noise.
 
         Parameters:
         p: tuple containing the booleans (albedo_td, seasonality, historical_forcing)
@@ -195,22 +205,19 @@ module North
         tspan: tuple of time span
 
         """
-
+        
         if noise == true 
             W = WienerProcess(0.0,0.0,0.0)
-            prob = SDEProblem(define_equation, g, T0, (0.0,20), p, noise = W)   
-            sol =  solve(prob, ImplicitRKMil(), save_everystep=false, dt = 0.01, progress = true,
-                progress_steps = 1)
+            #prob = SDEProblem(define_equation, g, T0, (0.0,20), p, noise = W)   
+            #sol =  solve(prob, ImplicitRKMil(), save_everystep=false, dt = 0.01, progress = true,
+            #    progress_steps = 1)
             #prob = ODEProblem(define_equation, T0, (0.0,10), p)   
             #sol =  solve(prob, CVODE_BDF(), save_everystep=false, dt = 0.01, progress = true,
             #    progress_steps = 1)
-            T0_new = sol[:, end]
+            #T0_new = sol[:, end]
             prob = SDEProblem(define_equation, g, T0_new, tspan, p, noise = W)
         else 
-            prob = ODEProblem(define_equation, T0, (0.0,20), p)   
-            sol =  solve(prob, CVODE_BDF(), save_everystep=false, dt = 0.01, progress = true,
-                progress_steps = 1)
-            T0_new = sol[:, end]
+
             prob = ODEProblem(define_equation, T0_new, tspan, p)   
         end
     end
@@ -227,11 +234,12 @@ module North
         ensemble: boolean if ensemble run or single run
         
         """
-        prob = initialize_problem(p, noise, tspan)
+        T0_new = initial_temperature(p)
+        prob = initialize_problem(p, noise, tspan, T0_new)
         if noise == true
             if ensemble == true 
                 ensembleprob = EnsembleProblem(prob) 
-                prob_no_noise = initialize_problem(p, false, tspan)
+                prob_no_noise = initialize_problem(p, false, tspan, T0_new)
                 # A run without noise is saved for analysis 
                 sol_no_noise = solve(prob_no_noise, CVODE_BDF(), saveat = 1/12, progress = true,
                 progress_steps = 1, dt=0.01)
