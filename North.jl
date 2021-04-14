@@ -17,7 +17,7 @@ module North
     using JLD2 
     using DelimitedFiles
 
-    runs = 10
+    runs = 2
     A = 211.2 - 19#18.
     B = 1/0.26
     D = 0.38
@@ -231,10 +231,10 @@ module North
         if noise == true
             if ensemble == true 
                 ensembleprob = EnsembleProblem(prob) 
-
+                prob_no_noise = initialize_problem(p, false, tspan)
                 # A run without noise is saved for analysis 
-                sol_no_noise = solve(prob, ImplicitRKMil(), saveat = 1/12, progress = true,
-                progress_steps = 1, adaptive=false,dt=0.01)
+                sol_no_noise = solve(prob_no_noise, CVODE_BDF(), saveat = 1/12, progress = true,
+                progress_steps = 1, dt=0.01)
                 save_ensemble(sol_no_noise, "temp_no_noise") 
 
                 sol = solve(ensembleprob,ImplicitRKMil(), saveat = 1/12, progress = true,
